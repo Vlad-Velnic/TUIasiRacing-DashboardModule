@@ -1,5 +1,6 @@
 #include "dashboard.h"
 
+// Initializations
 RTC_DS1307 rtc;
 DateTime timestamp(1999, 1, 1, 0, 0, 0); // initialized with an absurd value
 Adafruit_NeoPixel trmetru(NUM_LEDS, RPM_PIN, NEO_GRB + NEO_KHZ800);
@@ -7,6 +8,10 @@ int currentRPM = 0;
 String filename = "/dump";
 File logFile;
 u_int16_t status;
+WiFiClient espClient;
+PubSubClient client(espClient);
+char logLine[128] = "DEFAULT MESSAGE";
+
 
 void setup()
 {
@@ -75,6 +80,10 @@ void setup()
     Serial.println("Error opening file.");
   }
 
+  // Initialize WIFI and MQTT
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+
   // SETUP DONE
   Serial.print("/nInitialization done at: ");
   printTime();
@@ -85,32 +94,27 @@ void loop()
 {
   timestamp = rtc.now();
 
-  // Log on SD
+  // Log on SD and send on MQTT
   twai_message_t rx_msg;
   if (twai_receive(&rx_msg, pdMS_TO_TICKS(1000)) == ESP_OK)
   {
-    // Log basic CAN info
-    logFile.print("Time: ");
-    logFile.print(pad(timestamp.hour()));
-    logFile.print(":");
-    logFile.print(pad(timestamp.minute()));
-    logFile.print(":");
-    logFile.print(pad(timestamp.second()));
-    logFile.print(" | ID: 0x");
-    logFile.print(rx_msg.identifier, HEX);
-    logFile.print(" | DLC: ");
-    logFile.print(rx_msg.data_length_code);
-    logFile.print(" | Data: ");
-
-    // Log each byte
-    for (int i = 0; i < rx_msg.data_length_code; ++i)
+    int offset = snprintf(logLine, sizeof(logLine), "%lu,%lX,", timestamp.unixtime(), rx_msg.identifier);
+    for (int i = 0; i < rx_msg.data_length_code; i++)
     {
-      if (rx_msg.data[i] < 16)
-        logFile.print("0");
-      logFile.print(rx_msg.data[i], HEX);
-      logFile.print(" ");
+      offset += snprintf(logLine + offset, sizeof(logLine) - offset, "%02X", rx_msg.data[i]);
     }
-    logFile.println();
-    logFile.flush(); // Ensure data is written
+
+    // Write on SD
+    if (logFile)
+    {
+      logFile.println(logLine);
+      //logFile.flush(); // only for instant write on the SD
+    }
+
+    // Publish on MQTT
+    if (client.connected())
+    {
+      client.publish("canbus/log", logLine);
+    }
   }
 }
