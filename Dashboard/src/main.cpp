@@ -5,6 +5,7 @@ DateTime timestamp(1999, 1, 1, 0, 0, 0); // initialized with an absurd value
 Adafruit_NeoPixel trmetru(NUM_LEDS, RPM_PIN, NEO_GRB + NEO_KHZ800);
 int currentRPM = 0;
 String filename = "/dump";
+File logFile;
 
 void setup()
 {
@@ -40,12 +41,12 @@ void setup()
              pad(timestamp.minute()) + "-" +
              pad(timestamp.second()) + ".txt";
 
-  File dataFile = SD.open(filename, FILE_WRITE);
-  if (dataFile)
+  logFile = SD.open(filename, FILE_WRITE);
+  if (logFile)
   {
     Serial.print("Logging data to: ");
     Serial.println(filename);
-    dataFile.close();
+    //logFile.close();
   }
   else
   {
@@ -55,12 +56,13 @@ void setup()
   // SETUP DONE
   Serial.print("/nInitialization done at: ");
   printTime();
-  Serial.println("/n********LOOP Start********/n/n");
+  Serial.println("/n********LOOP Starts********/n/n");
 }
 
 void loop()
 {
   timestamp = rtc.now();
-  currentRPM = (millis() / 10) % MAX_RPM; // just cycles up and down for demo
-  showRPM(currentRPM);
+  
+  logFile.println("end");
+  logFile.flush();
 }

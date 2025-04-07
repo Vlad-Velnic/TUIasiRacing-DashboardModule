@@ -30,6 +30,7 @@ extern DateTime timestamp;
 extern Adafruit_NeoPixel trmetru;
 extern int currentRPM;
 extern String filename;
+extern File logFile;
 
 // Methods
 
