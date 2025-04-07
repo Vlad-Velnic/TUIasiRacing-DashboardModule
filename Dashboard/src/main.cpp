@@ -6,6 +6,7 @@ Adafruit_NeoPixel trmetru(NUM_LEDS, RPM_PIN, NEO_GRB + NEO_KHZ800);
 int currentRPM = 0;
 String filename = "/dump";
 File logFile;
+u_int16_t status;
 
 void setup()
 {
@@ -32,6 +33,27 @@ void setup()
     sleep(10);
   }
 
+  // Initialize CAN
+  status = can_driver_install(&g_config, &t_config, &f_config);
+  if (status == ESP_OK)
+  {
+    Serial.println("Can driver installed");
+  }
+  else
+  {
+    Serial.println("Can driver installation failed with errors");
+  }
+
+  status = can_start();
+  if (status == ESP_OK)
+  {
+    Serial.println("Can started");
+  }
+  else
+  {
+    Serial.println("Can starting procedure failed with errors");
+  }
+
   // Create logfile
   filename = "/log_" +
              String(timestamp.year()) + "-" +
@@ -46,7 +68,7 @@ void setup()
   {
     Serial.print("Logging data to: ");
     Serial.println(filename);
-    //logFile.close();
+    // logFile.close();
   }
   else
   {
@@ -62,7 +84,33 @@ void setup()
 void loop()
 {
   timestamp = rtc.now();
-  
-  logFile.println("end");
-  logFile.flush();
+
+  // Log on SD
+  twai_message_t rx_msg;
+  if (twai_receive(&rx_msg, pdMS_TO_TICKS(1000)) == ESP_OK)
+  {
+    // Log basic CAN info
+    logFile.print("Time: ");
+    logFile.print(pad(timestamp.hour()));
+    logFile.print(":");
+    logFile.print(pad(timestamp.minute()));
+    logFile.print(":");
+    logFile.print(pad(timestamp.second()));
+    logFile.print(" | ID: 0x");
+    logFile.print(rx_msg.identifier, HEX);
+    logFile.print(" | DLC: ");
+    logFile.print(rx_msg.data_length_code);
+    logFile.print(" | Data: ");
+
+    // Log each byte
+    for (int i = 0; i < rx_msg.data_length_code; ++i)
+    {
+      if (rx_msg.data[i] < 16)
+        logFile.print("0");
+      logFile.print(rx_msg.data[i], HEX);
+      logFile.print(" ");
+    }
+    logFile.println();
+    logFile.flush(); // Ensure data is written
+  }
 }

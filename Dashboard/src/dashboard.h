@@ -8,6 +8,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <SD.h>
 #include <SPI.h>
+#include "driver/can.h"
 
 // Numeric constants
 
@@ -17,11 +18,13 @@
 
 // Pins
 
-#define RPM_PIN 5      // Data pin to LED strip for RPM
-#define SD_CS_PIN 15   // Chip select pin for SD writer
-#define SD_SCK_PIN 18  // SCK pin for SD writer
-#define SD_MISO_PIN 19 // MISO pin for SD writer
-#define SD_MOSI_PIN 23 // MOSI pin for SD writer
+#define RPM_PIN       5            // Data pin to LED strip for RPM
+#define SD_CS_PIN     15           // Chip select pin for SD writer
+#define SD_SCK_PIN    18           // SCK pin for SD writer
+#define SD_MISO_PIN   19           // MISO pin for SD writer
+#define SD_MOSI_PIN   23           // MOSI pin for SD writer
+#define TX_GPIO_NUM   GPIO_NUM_14  // TX for CAN
+#define RX_GPIO_NUM   GPIO_NUM_27  // RX for CAN
 
 // Global variables and objects
 
@@ -31,6 +34,7 @@ extern Adafruit_NeoPixel trmetru;
 extern int currentRPM;
 extern String filename;
 extern File logFile;
+extern u_int16_t status;
 
 // Methods
 
@@ -38,3 +42,8 @@ void printTime();
 void printDateAndTime();
 void showRPM(int currentRPM);
 String pad(int number);
+
+// CAN config
+static const can_general_config_t g_config = {.mode = TWAI_MODE_NO_ACK, .tx_io = TX_GPIO_NUM, .rx_io = RX_GPIO_NUM, .clkout_io = TWAI_IO_UNUSED, .bus_off_io = TWAI_IO_UNUSED, .tx_queue_len = 1, .rx_queue_len = 5, .alerts_enabled = TWAI_ALERT_ALL, .clkout_divider = 0, .intr_flags = ESP_INTR_FLAG_LEVEL1};
+static const can_timing_config_t t_config = CAN_TIMING_CONFIG_500KBITS();
+static const can_filter_config_t f_config = CAN_FILTER_CONFIG_ACCEPT_ALL();
