@@ -30,6 +30,7 @@
 #define SD_MOSI_PIN 23          // MOSI pin for SD writer
 #define TX_GPIO_NUM GPIO_NUM_14 // TX for CAN
 #define RX_GPIO_NUM GPIO_NUM_27 // RX for CAN
+#define RPM_CAN_ID 0x05F0
 
 // Global variables and objects
 

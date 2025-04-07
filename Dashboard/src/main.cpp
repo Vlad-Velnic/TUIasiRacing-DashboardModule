@@ -12,7 +12,6 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 char logLine[128] = "DEFAULT MESSAGE";
 
-
 void setup()
 {
   Serial.begin(115200);
@@ -87,7 +86,7 @@ void setup()
   // SETUP DONE
   Serial.print("/nInitialization done at: ");
   printTime();
-  Serial.println("/n********LOOP Starts********/n/n");
+  Serial.println("/n******** Loop Starts ********/n/n");
 }
 
 void loop()
@@ -98,17 +97,28 @@ void loop()
   twai_message_t rx_msg;
   if (twai_receive(&rx_msg, pdMS_TO_TICKS(1000)) == ESP_OK)
   {
+    // Build the "logline"
     int offset = snprintf(logLine, sizeof(logLine), "%lu,%lX,", timestamp.unixtime(), rx_msg.identifier);
     for (int i = 0; i < rx_msg.data_length_code; i++)
     {
       offset += snprintf(logLine + offset, sizeof(logLine) - offset, "%02X", rx_msg.data[i]);
     }
 
+    // Show current RPM
+    if (rx_msg.identifier == RPM_CAN_ID)
+    {
+      currentRPM = (rx_msg.data[6] << 8) | rx_msg.data[7];
+      if (currentRPM > MIN_RPM)
+      {
+        showRPM(currentRPM);
+      }
+    }
+
     // Write on SD
     if (logFile)
     {
       logFile.println(logLine);
-      //logFile.flush(); // only for instant write on the SD
+      // logFile.flush(); // only for instant write on the SD
     }
 
     // Publish on MQTT
