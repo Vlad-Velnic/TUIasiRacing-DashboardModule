@@ -1,18 +1,25 @@
-#include <Arduino.h>
+#include "dashboard.h"
 
-// put function declarations here:
-int myFunction(int, int);
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  Serial.begin(115200);
+  Wire.begin();
+
+  while (!rtc.begin()) {
+    Serial.println("Nu s-a putut initializa RTC-ul!");
+    sleep(100);
+  }
+
+
+
+  timestamp = rtc.now();
+  Serial.print("Initialization done at: "); display_time();
+  Serial.println("********LOOP Start********");
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  timestamp = rtc.now();
+
+
 }
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
-}
