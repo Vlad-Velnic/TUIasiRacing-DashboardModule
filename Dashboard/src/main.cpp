@@ -11,6 +11,7 @@ u_int16_t status;
 WiFiClient espClient;
 PubSubClient client(espClient);
 char logLine[128] = "DEFAULT MESSAGE";
+Adafruit_SSD1306 display(128, 64, &SPI, OLED_DC, OLED_RST, OLED_CS);
 
 void setup()
 {
@@ -58,6 +59,17 @@ void setup()
     Serial.println("Can starting procedure failed with errors");
   }
 
+  // Iitialize DISPLAY
+  while (!display.begin(SSD1306_SWITCHCAPVCC))
+  {
+    Serial.println("Eroare la initializare SSD1306 (folosit pt SSD1309)");
+    sleep(10);
+  }
+
+  // Initialize WIFI and MQTT
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+
   // Create logfile
   filename = "/log_" +
              String(timestamp.year()) + "-" +
@@ -78,10 +90,6 @@ void setup()
   {
     Serial.println("Error opening file.");
   }
-
-  // Initialize WIFI and MQTT
-  setup_wifi();
-  client.setServer(mqtt_server, 1883);
 
   // SETUP DONE
   Serial.print("/nInitialization done at: ");
