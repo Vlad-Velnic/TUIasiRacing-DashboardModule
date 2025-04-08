@@ -12,6 +12,10 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 char logLine[128] = "DEFAULT MESSAGE";
 Adafruit_SSD1306 display(128, 64, &SPI, OLED_DC, OLED_RST, OLED_CS);
+short int currentGear = 0;
+int currentTemp = 0;
+int lastLapTime = 0;
+float currentBatteryVoltage = 0;
 
 void setup()
 {
@@ -121,6 +125,27 @@ void loop()
         showRPM(currentRPM);
       }
     }
+
+    // Read current Gear
+    if (rx_msg.identifier == GEAR_CAN_ID)
+    {
+      currentGear = rx_msg.data[6];
+    }
+
+    // Read current Engine Temperature
+    if (rx_msg.identifier == TEMP_CAN_ID)
+    {
+      currentTemp = ((((rx_msg.data[6] << 8) | rx_msg.data[7]) - 32) / 1.8) / 10; // converts to Celsius
+    }
+
+    // Read current Batery Voltage
+    if (rx_msg.identifier == VOLT_CAN_ID)
+    {
+      currentBatteryVoltage = ((rx_msg.data[2] << 8) | rx_msg.data[4]) / 10; // converts to Celsius
+    }
+
+    // Display update
+    updateDisplay();
 
     // Write on SD
     if (logFile)

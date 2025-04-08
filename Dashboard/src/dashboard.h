@@ -29,6 +29,11 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 
+#define RPM_CAN_ID 0x05F0
+#define GEAR_CAN_ID 0x0115
+#define TEMP_CAN_ID 0x05F2
+#define VOLT_CAN_ID 0x05F3
+
 // Pins
 
 #define RPM_PIN 5               // Data pin to LED strip for RPM
@@ -40,7 +45,7 @@
 
 #define TX_GPIO_NUM GPIO_NUM_14 // TX for CAN
 #define RX_GPIO_NUM GPIO_NUM_27 // RX for CAN
-#define RPM_CAN_ID 0x05F0
+
 
 #define OLED_CS   5   // Chip Select
 #define OLED_DC   16  // Data/Command
@@ -59,6 +64,10 @@ extern WiFiClient espClient;
 extern PubSubClient client;
 extern char logLine[128];
 extern Adafruit_SSD1306 display;
+extern short int currentGear;
+extern int currentTemp;
+extern int lastLapTime;
+extern float currentBatteryVoltage;
 
 // Methods
 
@@ -67,6 +76,7 @@ void printDateAndTime();
 void showRPM(int currentRPM);
 String pad(int number);
 void setup_wifi();
+void updateDisplay();
 
 // CAN config
 static const can_general_config_t g_config = {.mode = TWAI_MODE_NO_ACK, .tx_io = TX_GPIO_NUM, .rx_io = RX_GPIO_NUM, .clkout_io = TWAI_IO_UNUSED, .bus_off_io = TWAI_IO_UNUSED, .tx_queue_len = 1, .rx_queue_len = 5, .alerts_enabled = TWAI_ALERT_ALL, .clkout_divider = 0, .intr_flags = ESP_INTR_FLAG_LEVEL1};
