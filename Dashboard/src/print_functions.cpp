@@ -4,22 +4,22 @@ void printTime()
 {
     // Displays "hour:minute:second" on serial
 
-    Serial.print(timestamp.hour());
+    Serial.print(dateAndTime.hour());
     Serial.print(':');
-    Serial.print(timestamp.minute());
+    Serial.print(dateAndTime.minute());
     Serial.print(':');
-    Serial.print(timestamp.second());
+    Serial.print(dateAndTime.second());
 }
 
 void printDateAndTime()
 {
     // Displays "day/month/year - hour:minute:second" on serial
 
-    Serial.print(timestamp.day());
+    Serial.print(dateAndTime.day());
     Serial.print('/');
-    Serial.print(timestamp.month());
+    Serial.print(dateAndTime.month());
     Serial.print('/');
-    Serial.print(timestamp.year());
+    Serial.print(dateAndTime.year());
     Serial.print(" - ");
 
     printTime();
@@ -35,18 +35,25 @@ void updateDisplay()
     display.clearDisplay();
 
     // GEAR - stânga sus
-    for (int dx = 0; dx <= 1; dx++) {
-        for (int dy = 0; dy <= 1; dy++) {
-          display.setCursor(0 + dx, 0 + dy);
-          display.print(currentGear);
+    for (int dx = 0; dx <= 1; dx++)
+    {
+        for (int dy = 0; dy <= 1; dy++)
+        {
+            display.setCursor(0 + dx, 0 + dy);
+            display.print(currentGear);
         }
     }
 
     // Line 1 - Last Lap Time (dreapta sus)
+    DateTime lapTime(lastLapTime);
     display.setTextSize(1);
     int textX = SCREEN_WIDTH - (6 * 1 * 10); // adjust width for ~10 chars
     display.setCursor(textX, 0);
-    display.print(lastLapTime);
+    display.print(lapTime.minute()); // minutes
+    display.print(':');
+    display.print(lapTime.second()); // seconds
+    display.print(':');
+    display.print((lastLapTime * 1000) % 1000); // milliseconds
 
     // Line 2 - TEMP (dreapta mijloc)
     display.setTextSize(1); // mai mare

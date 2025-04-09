@@ -2,7 +2,7 @@
 
 // Initializations
 RTC_DS1307 rtc;
-DateTime timestamp(1999, 1, 1, 0, 0, 0); // initialized with an absurd value
+DateTime dateAndTime; // initialized with an absurd value
 Adafruit_NeoPixel trmetru(NUM_LEDS, RPM_PIN, NEO_GRB + NEO_KHZ800);
 int currentRPM = 0;
 String filename = "/dump";
@@ -14,8 +14,17 @@ char logLine[128] = "DEFAULT MESSAGE";
 Adafruit_SSD1306 display(128, 64, &SPI, OLED_DC, OLED_RST, OLED_CS);
 short int currentGear = 0;
 int currentTemp = 0;
-int lastLapTime = 0;
+uint32_t lastLapTime = 0;
 float currentBatteryVoltage = 0;
+GPSPoint gateL = {LEFT_GATE_LAT, LEFT_GATE_LON, 0};
+GPSPoint gateR = {RIGHT_GATE_LAT, RIGHT_GATE_LON, 0};
+GPSPoint prevLocation;
+GPSPoint currLocation;
+uint32_t prevTime;
+uint32_t currTime;
+uint32_t rtcBase;
+unsigned long millisBase;
+unsigned long timestamp;
 
 void setup()
 {
@@ -28,7 +37,8 @@ void setup()
     Serial.println("Nu s-a putut initializa RTC-ul!");
     sleep(10);
   }
-  timestamp = rtc.now();
+  rtcBase = rtc.now().unixtime();
+  millisBase = millis();
 
   // Initialize TRMETRU
   trmetru.begin();
@@ -75,13 +85,14 @@ void setup()
   client.setServer(mqtt_server, 1883);
 
   // Create logfile
+  dateAndTime = rtc.now();
   filename = "/log_" +
-             String(timestamp.year()) + "-" +
-             pad(timestamp.month()) + "-" +
-             pad(timestamp.day()) + "_" +
-             pad(timestamp.hour()) + "-" +
-             pad(timestamp.minute()) + "-" +
-             pad(timestamp.second()) + ".txt";
+             String(dateAndTime.year()) + "-" +
+             pad(dateAndTime.month()) + "-" +
+             pad(dateAndTime.day()) + "_" +
+             pad(dateAndTime.hour()) + "-" +
+             pad(dateAndTime.minute()) + "-" +
+             pad(dateAndTime.second()) + ".txt";
 
   logFile = SD.open(filename, FILE_WRITE);
   if (logFile)
@@ -103,14 +114,14 @@ void setup()
 
 void loop()
 {
-  timestamp = rtc.now();
+  timestamp = rtcBase + ((millis() - millisBase) % 1000) / 1000.0;
 
   // Log on SD and send on MQTT
   twai_message_t rx_msg;
   if (twai_receive(&rx_msg, pdMS_TO_TICKS(1000)) == ESP_OK)
   {
     // Build the "logline"
-    int offset = snprintf(logLine, sizeof(logLine), "%lu,%lX,", timestamp.unixtime(), rx_msg.identifier);
+    int offset = snprintf(logLine, sizeof(logLine), "%lu,%lX,", timestamp, rx_msg.identifier);
     for (int i = 0; i < rx_msg.data_length_code; i++)
     {
       offset += snprintf(logLine + offset, sizeof(logLine) - offset, "%02X", rx_msg.data[i]);
@@ -130,6 +141,22 @@ void loop()
     if (rx_msg.identifier == GEAR_CAN_ID)
     {
       currentGear = rx_msg.data[6];
+    }
+
+    // Read GPS data
+    if (rx_msg.identifier == GPS_CAN_ID)
+    {
+      prevLocation = currLocation;
+      currLocation.timestamp = rtcBase + ((millis() - millisBase) % 1000) / 1000.0;
+      currLocation.lat = rx_msg.data[0] << 16 | rx_msg.data[1] << 8 | rx_msg.data[2];
+      currLocation.lon = rx_msg.data[3] << 16 | rx_msg.data[4] << 8 | rx_msg.data[5];
+      currLocation.speed = rx_msg.data[6];
+      if (getIntersectionTime(prevLocation, currLocation))
+      {
+        // currTime updated
+        lastLapTime = currTime - prevTime;
+        prevTime = currTime;
+      }
     }
 
     // Read current Engine Temperature
