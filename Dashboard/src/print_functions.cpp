@@ -53,7 +53,7 @@ void updateDisplay()
     display.print(':');
     display.print(lapTime.second()); // seconds
     display.print(':');
-    display.print((lastLapTime * 1000) % 1000); // milliseconds
+    display.print(int(lastLapTime * 1000) % 1000); // milliseconds
 
     // Line 2 - TEMP (dreapta mijloc)
     display.setTextSize(1); // mai mare

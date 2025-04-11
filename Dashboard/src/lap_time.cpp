@@ -18,10 +18,9 @@ bool getIntersectionTime(GPSPoint prev, GPSPoint curr)
     double interLat = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom;
 
     // Compute distance ratio along prev → curr
-    // double totalDist = hypot(curr.lon - prev.lon, curr.lat - prev.lat);
     double distToInter = hypot(interLon - prev.lon, interLat - prev.lat);
 
-    double ratio = distToInter / ((prev.speed + curr.speed) / 2);
+    double ratio = distToInter / (((prev.speed + curr.speed) / 2) / 3.6); // avrage speed converted to m/s
 
     // Interpolate timestamp
     currTime = prev.timestamp + ratio * (curr.timestamp - prev.timestamp);

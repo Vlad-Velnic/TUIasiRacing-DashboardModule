@@ -35,10 +35,11 @@
 #define VOLT_CAN_ID 0x05F3
 #define GPS_CAN_ID 0x0116
 
-#define LEFT_GATE_LAT 47.123213
-#define LEFT_GATE_LON 27.123123
-#define RIGHT_GATE_LAT 47.234232
-#define RIGHT_GATE_LON 27.231231
+// final values taken from maps
+#define LEFT_GATE_LAT 46.525579
+#define LEFT_GATE_LON 26.942636
+#define RIGHT_GATE_LAT 46.525648
+#define RIGHT_GATE_LON 26.942909
 
 // Pins
 
@@ -62,8 +63,8 @@ struct GPSPoint
 {
     double lat;
     double lon;
-    uint32_t timestamp; // in unix time
-    double speed;
+    double timestamp; // in unix time + milis offset
+    double speed; // in km/h 
 };
 
 // Global variables and objects
@@ -80,18 +81,18 @@ extern PubSubClient client;
 extern char logLine[128];
 extern Adafruit_SSD1306 display;
 extern short int currentGear;
-extern int currentTemp;
-extern uint32_t lastLapTime;
+extern float currentTemp;
+extern double lastLapTime;
 extern float currentBatteryVoltage;
 extern GPSPoint gateL;
 extern GPSPoint gateR;
 extern GPSPoint prevLocation;
 extern GPSPoint currLocation;
-extern uint32_t prevTime;
-extern uint32_t currTime;
+extern double prevTime;
+extern double currTime;
 extern uint32_t rtcBase;
 extern unsigned long millisBase;
-extern unsigned long timestamp;
+extern double timestamp;
 
 
 // Methods

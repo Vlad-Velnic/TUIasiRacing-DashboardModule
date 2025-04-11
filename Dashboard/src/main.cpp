@@ -2,7 +2,7 @@
 
 // Initializations
 RTC_DS1307 rtc;
-DateTime dateAndTime; // initialized with an absurd value
+DateTime dateAndTime = {1999,0,0,0,0,0}; // initialized with an absurd value
 Adafruit_NeoPixel trmetru(NUM_LEDS, RPM_PIN, NEO_GRB + NEO_KHZ800);
 int currentRPM = 0;
 String filename = "/dump";
@@ -13,18 +13,18 @@ PubSubClient client(espClient);
 char logLine[128] = "DEFAULT MESSAGE";
 Adafruit_SSD1306 display(128, 64, &SPI, OLED_DC, OLED_RST, OLED_CS);
 short int currentGear = 0;
-int currentTemp = 0;
-uint32_t lastLapTime = 0;
+float currentTemp = 0;
+double lastLapTime = 0;
 float currentBatteryVoltage = 0;
 GPSPoint gateL = {LEFT_GATE_LAT, LEFT_GATE_LON, 0};
 GPSPoint gateR = {RIGHT_GATE_LAT, RIGHT_GATE_LON, 0};
 GPSPoint prevLocation;
 GPSPoint currLocation;
-uint32_t prevTime;
-uint32_t currTime;
+double prevTime;
+double currTime;
 uint32_t rtcBase;
 unsigned long millisBase;
-unsigned long timestamp;
+double timestamp;
 
 void setup()
 {
@@ -114,7 +114,7 @@ void setup()
 
 void loop()
 {
-  timestamp = rtcBase + ((millis() - millisBase) % 1000) / 1000.0;
+  timestamp = rtc.now().unixtime() + ((millis() - millisBase) % 1000) / 1000.0;
 
   // Log on SD and send on MQTT
   twai_message_t rx_msg;
@@ -148,8 +148,8 @@ void loop()
     {
       prevLocation = currLocation;
       currLocation.timestamp = rtcBase + ((millis() - millisBase) % 1000) / 1000.0;
-      currLocation.lat = rx_msg.data[0] << 16 | rx_msg.data[1] << 8 | rx_msg.data[2];
-      currLocation.lon = rx_msg.data[3] << 16 | rx_msg.data[4] << 8 | rx_msg.data[5];
+      currLocation.lat = 46.0 + (rx_msg.data[2] << 16 | rx_msg.data[1] << 8 | rx_msg.data[0]) / 1000000.0;
+      currLocation.lon = 26.0 + (rx_msg.data[5] << 16 | rx_msg.data[4] << 8 | rx_msg.data[3]) / 1000000.0;
       currLocation.speed = rx_msg.data[6];
       if (getIntersectionTime(prevLocation, currLocation))
       {
@@ -162,13 +162,13 @@ void loop()
     // Read current Engine Temperature
     if (rx_msg.identifier == TEMP_CAN_ID)
     {
-      currentTemp = ((((rx_msg.data[6] << 8) | rx_msg.data[7]) - 32) / 1.8) / 10; // converts to Celsius
+      currentTemp = ((((rx_msg.data[6] << 8) | rx_msg.data[7]) - 32) / 1.8) / 10.0; // converts to Celsius
     }
 
     // Read current Batery Voltage
     if (rx_msg.identifier == VOLT_CAN_ID)
     {
-      currentBatteryVoltage = ((rx_msg.data[2] << 8) | rx_msg.data[4]) / 10; // converts to Celsius
+      currentBatteryVoltage = ((rx_msg.data[2] << 8) | rx_msg.data[4]) / 10.0;
     }
 
     // Display update
