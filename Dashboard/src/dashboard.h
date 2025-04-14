@@ -43,19 +43,28 @@
 
 // Pins
 
-#define RPM_PIN 5 // Data pin to LED strip for RPM
+#define RPM_PIN GPIO_NUM_15 // Data pin to LED strip for RPM
 
-#define SD_CS_PIN 15   // Chip select pin for SD writer
-#define SD_SCK_PIN 18  // SCK pin for SD writer
-#define SD_MISO_PIN 19 // MISO pin for SD writer
-#define SD_MOSI_PIN 23 // MOSI pin for SD writer
+#define SD_CS_PIN GPIO_NUM_5   // Chip select pin for SD writer
+#define SD_SCK_PIN GPIO_NUM_18  // SCK pin for SD writer
+#define SD_MISO_PIN GPIO_NUM_19 // MISO pin for SD writer
+#define SD_MOSI_PIN GPIO_NUM_23 // MOSI pin for SD writer
 
-#define TX_GPIO_NUM GPIO_NUM_14 // TX for CAN
-#define RX_GPIO_NUM GPIO_NUM_27 // RX for CAN
+#define TX_GPIO_NUM GPIO_NUM_33 // TX for CAN
+#define RX_GPIO_NUM GPIO_NUM_32 // RX for CAN
 
-#define OLED_CS 5   // Chip Select
-#define OLED_DC 16  // Data/Command
-#define OLED_RST 17 // Reset
+// Epntru display sunt urmatorii pini:
+// CS 15 la fel ca in KiCAD
+// DC 13 din KiCAD este MOSI
+// RES 14 din KiCAD este SCLK
+// SDA -
+// SCLK -
+#define OLED_CS GPIO_NUM_15   // Chip Select
+#define OLED_DC GPIO_NUM_16  // Data/Command
+#define OLED_RST GPIO_NUM_14 // Reset
+
+#define RTC_SDA GPIO_NUM_21 // Default I2C
+#define RTC_SCL GPIO_NUM_22 // Default I2C
 
 // Structs and Classes
 

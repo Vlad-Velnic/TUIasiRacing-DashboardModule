@@ -1,35 +1,5 @@
 #include "dashboard.h"
 
-void printTime()
-{
-    // Displays "hour:minute:second" on serial
-
-    Serial.print(dateAndTime.hour());
-    Serial.print(':');
-    Serial.print(dateAndTime.minute());
-    Serial.print(':');
-    Serial.print(dateAndTime.second());
-}
-
-void printDateAndTime()
-{
-    // Displays "day/month/year - hour:minute:second" on serial
-
-    Serial.print(dateAndTime.day());
-    Serial.print('/');
-    Serial.print(dateAndTime.month());
-    Serial.print('/');
-    Serial.print(dateAndTime.year());
-    Serial.print(" - ");
-
-    printTime();
-    // Serial.print(timestamp.hour());
-    // Serial.print(':');
-    // Serial.print(timestamp.minute());
-    // Serial.print(':');
-    // Serial.print(timestamp.second());
-}
-
 void updateDisplay()
 {
     display.clearDisplay();
@@ -64,4 +34,34 @@ void updateDisplay()
     display.setTextSize(1);
     display.setCursor(textX, 40);
     display.print(currentBatteryVoltage);
+}
+
+void printTime()
+{
+    // Displays "hour:minute:second" on serial
+
+    Serial.print(dateAndTime.hour());
+    Serial.print(':');
+    Serial.print(dateAndTime.minute());
+    Serial.print(':');
+    Serial.print(dateAndTime.second());
+}
+
+void printDateAndTime()
+{
+    // Displays "day/month/year - hour:minute:second" on serial
+
+    Serial.print(dateAndTime.day());
+    Serial.print('/');
+    Serial.print(dateAndTime.month());
+    Serial.print('/');
+    Serial.print(dateAndTime.year());
+    Serial.print(" - ");
+
+    printTime();
+    // Serial.print(timestamp.hour());
+    // Serial.print(':');
+    // Serial.print(timestamp.minute());
+    // Serial.print(':');
+    // Serial.print(timestamp.second());
 }

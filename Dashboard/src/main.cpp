@@ -2,37 +2,44 @@
 
 // Initializations
 RTC_DS1307 rtc;
+TwoWire RTC_Wire(1);
 DateTime dateAndTime = {1999,0,0,0,0,0}; // initialized with an absurd value
-Adafruit_NeoPixel trmetru(NUM_LEDS, RPM_PIN, NEO_GRB + NEO_KHZ800);
-int currentRPM = 0;
-String filename = "/dump";
-File logFile;
-u_int16_t status;
-WiFiClient espClient;
-PubSubClient client(espClient);
-char logLine[128] = "DEFAULT MESSAGE";
-Adafruit_SSD1306 display(128, 64, &SPI, OLED_DC, OLED_RST, OLED_CS);
-short int currentGear = 0;
-float currentTemp = 0;
-double lastLapTime = 0;
-float currentBatteryVoltage = 0;
-GPSPoint gateL = {LEFT_GATE_LAT, LEFT_GATE_LON, 0};
-GPSPoint gateR = {RIGHT_GATE_LAT, RIGHT_GATE_LON, 0};
-GPSPoint prevLocation;
-GPSPoint currLocation;
+double timestamp;
 double prevTime;
 double currTime;
 uint32_t rtcBase;
 unsigned long millisBase;
-double timestamp;
+double lastLapTime = 0;
+
+Adafruit_NeoPixel trmetru(NUM_LEDS, RPM_PIN, NEO_GRB + NEO_KHZ800);
+int currentRPM = 0;
+
+String filename = "/dump";
+File logFile;
+char logLine[128] = "DEFAULT MESSAGE";
+
+u_int16_t status;
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+Adafruit_SSD1306 display(128, 64, &SPI, OLED_DC, OLED_RST, OLED_CS);
+
+short int currentGear = 0;
+float currentTemp = 0;
+float currentBatteryVoltage = 0;
+
+GPSPoint gateL = {LEFT_GATE_LAT, LEFT_GATE_LON, 0};
+GPSPoint gateR = {RIGHT_GATE_LAT, RIGHT_GATE_LON, 0};
+GPSPoint prevLocation;
+GPSPoint currLocation;
 
 void setup()
 {
   Serial.begin(115200);
-  Wire.begin();
+  RTC_Wire.begin(RTC_SDA,RTC_SCL);
 
   // Initialize RTC
-  while (!rtc.begin())
+  while (!rtc.begin(&RTC_Wire))
   {
     Serial.println("Nu s-a putut initializa RTC-ul!");
     sleep(10);
