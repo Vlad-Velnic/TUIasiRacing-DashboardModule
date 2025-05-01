@@ -3,7 +3,7 @@
 // Initializations
 RTC_DS1307 rtc;
 TwoWire RTC_Wire(1);
-DateTime dateAndTime = {1999,0,0,0,0,0}; // initialized with an absurd value
+DateTime dateAndTime = {1999, 0, 0, 0, 0, 0}; // initialized with an absurd value
 double timestamp;
 double prevTime;
 double currTime;
@@ -36,12 +36,12 @@ GPSPoint currLocation;
 void setup()
 {
   Serial.begin(115200);
-  RTC_Wire.begin(RTC_SDA,RTC_SCL);
+  RTC_Wire.begin(RTC_SDA, RTC_SCL);
 
   // Initialize RTC
   while (!rtc.begin(&RTC_Wire))
   {
-    Serial.println("Nu s-a putut initializa RTC-ul!");
+    Serial.println("RTC initialization failed");
     sleep(10);
   }
   rtcBase = rtc.now().unixtime();
@@ -55,7 +55,7 @@ void setup()
   SPI.begin(SD_SCK_PIN, SD_MISO_PIN, SD_MOSI_PIN, SD_CS_PIN);
   while (!SD.begin(SD_CS_PIN))
   {
-    Serial.println("SD card initialization failed!");
+    Serial.println("SD card initialization failed");
     sleep(10);
   }
 
@@ -83,7 +83,7 @@ void setup()
   // Iitialize DISPLAY
   while (!display.begin(SSD1306_SWITCHCAPVCC))
   {
-    Serial.println("Eroare la initializare SSD1306 (folosit pt SSD1309)");
+    Serial.println("Oled display initialization failed");
     sleep(10);
   }
 
@@ -153,16 +153,20 @@ void loop()
     // Read GPS data
     if (rx_msg.identifier == GPS_CAN_ID)
     {
-      prevLocation = currLocation;
-      currLocation.timestamp = rtcBase + ((millis() - millisBase) % 1000) / 1000.0;
+      currLocation.timestamp = rtc.now().unixtime() + ((millis() - millisBase) % 1000) / 1000.0;
       currLocation.lat = 46.0 + (rx_msg.data[2] << 16 | rx_msg.data[1] << 8 | rx_msg.data[0]) / 1000000.0;
       currLocation.lon = 26.0 + (rx_msg.data[5] << 16 | rx_msg.data[4] << 8 | rx_msg.data[3]) / 1000000.0;
       currLocation.speed = rx_msg.data[6];
-      if (getIntersectionTime(prevLocation, currLocation))
+
+      if (TinyGPSPlus::distanceBetween(prevLocation.lat, prevLocation.lon, currLocation.lat, currLocation.lon) > 1.5)
       {
-        // currTime updated
-        lastLapTime = currTime - prevTime;
-        prevTime = currTime;
+        if (getIntersectionTime(prevLocation, currLocation))
+        {
+          // currTime updated
+          lastLapTime = currTime - prevTime;
+          prevTime = currTime;
+        }
+        prevLocation = currLocation;
       }
     }
 

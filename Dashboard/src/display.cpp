@@ -4,36 +4,46 @@ void updateDisplay()
 {
     display.clearDisplay();
 
-    // GEAR - stânga sus
-    for (int dx = 0; dx <= 1; dx++)
-    {
-        for (int dy = 0; dy <= 1; dy++)
-        {
-            display.setCursor(0 + dx, 0 + dy);
-            display.print(currentGear);
-        }
-    }
+  // GEAR 
+  display.setTextSize(9); 
+  display.setCursor(9, 0);
+  display.print(currentGear);
 
-    // Line 1 - Last Lap Time (dreapta sus)
-    DateTime lapTime(lastLapTime);
-    display.setTextSize(1);
-    int textX = SCREEN_WIDTH - (6 * 1 * 10); // adjust width for ~10 chars
-    display.setCursor(textX, 0);
-    display.print(lapTime.minute()); // minutes
-    display.print(':');
-    display.print(lapTime.second()); // seconds
-    display.print(':');
-    display.print(int(lastLapTime * 1000) % 1000); // milliseconds
+  // Lap Time
+  display.setTextSize(2);
+  int textX = SCREEN_WIDTH - (6 * 1 * 10);
+  display.setCursor(textX, 0);
 
-    // Line 2 - TEMP (dreapta mijloc)
-    display.setTextSize(1); // mai mare
-    display.setCursor(textX, 15);
-    display.print(String(currentTemp, 1) + char(176)); // ex: 85.5
+  unsigned int minutes = (int)lastLapTime / 60;
+  unsigned int seconds = (int)lastLapTime % 60;
+  unsigned int millisecs = (int)((lastLapTime - (int)lastLapTime) * 10);
 
-    // Line 3 - Battery Voltage (dreapta jos)
-    display.setTextSize(1);
-    display.setCursor(textX, 40);
-    display.print(currentBatteryVoltage);
+  display.setCursor(textX, 0);
+  display.print(minutes);
+
+  display.setCursor(display.getCursorX()-5, 0);
+  display.print(':');
+  display.setCursor(display.getCursorX()-3, 0);
+  if (seconds < 10)
+    display.print('0');
+  display.print(seconds);
+
+  display.setCursor(display.getCursorX()-3, 0);
+  display.print(':');
+  display.setCursor(display.getCursorX()-3, 0);
+  display.print(millisecs);
+
+  // Engine Temp and Battery Voltage
+  display.setTextSize(1);
+  display.setCursor(textX+5, 55);
+  display.print(currentTemp);
+  display.drawCircle(display.getCursorX() + 2, display.getCursorY() - 3, 2, SSD1306_WHITE);
+
+  display.setCursor(textX+26, 55);
+  display.print(currentBatteryVoltage, 1);
+  display.print('V');
+
+  display.display();
 }
 
 void printTime()
