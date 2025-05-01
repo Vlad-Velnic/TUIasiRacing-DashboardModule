@@ -24,8 +24,8 @@
 #define MAX_RPM 8000 // Max engine RPM
 #define MIN_RPM 4000 // Min engine RPM
 
-#define ssid "Numele_Retelei_Tale"
-#define password "Parola_WiFi"
+#define ssid "TUIRacing_252"
+#define password "asTusPgg2#q%" // no real security threats
 #define mqtt_server "192.168.1.100"
 
 #define SCREEN_WIDTH 128

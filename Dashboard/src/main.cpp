@@ -37,6 +37,7 @@ void setup()
 {
   Serial.begin(115200);
   RTC_Wire.begin(RTC_SDA, RTC_SCL);
+  ArduinoOTA.begin(); // Over the air updates
 
   // Initialize RTC
   while (!rtc.begin(&RTC_Wire))
@@ -198,4 +199,5 @@ void loop()
       client.publish("canbus/log", logLine);
     }
   }
+  ArduinoOTA.handle();
 }
