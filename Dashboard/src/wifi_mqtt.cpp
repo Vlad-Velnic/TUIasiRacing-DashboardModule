@@ -1,5 +1,8 @@
 #include "dashboard.h"
 
+const char *ssid = "iPhone";
+const char *password = "coscos27";
+
 void setup_wifi()
 {
     delay(10);

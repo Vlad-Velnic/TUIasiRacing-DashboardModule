@@ -16,6 +16,8 @@
 #include <cmath>
 #include <TinyGPS++.h>
 #include <ArduinoOTA.h>
+#include <time.h>
+#include <Fonts/FreeSansBold18pt7b.h>
 
 // Constants
 
@@ -24,8 +26,6 @@
 #define MAX_RPM 8000 // Max engine RPM
 #define MIN_RPM 4000 // Min engine RPM
 
-#define ssid "TUIRacing_252"
-#define password "asTusPgg2#q%" // no real security threats
 #define mqtt_server "192.168.1.100"
 
 #define SCREEN_WIDTH 128
@@ -36,6 +36,10 @@
 #define TEMP_CAN_ID 0x05F2
 #define VOLT_CAN_ID 0x05F3
 #define GPS_CAN_ID 0x0116
+
+#define ntpServer  "pool.ntp.org"
+#define gmtOffset_sec  7200       // România summer
+#define daylightOffset_sec  0
 
 // final values taken from maps
 #define LEFT_GATE_LAT 46.525579
@@ -55,15 +59,11 @@
 #define TX_GPIO_NUM GPIO_NUM_33 // TX for CAN
 #define RX_GPIO_NUM GPIO_NUM_32 // RX for CAN
 
-// Epntru display sunt urmatorii pini:
-// CS 15 la fel ca in KiCAD
-// DC 13 din KiCAD este MOSI
-// RES 14 din KiCAD este SCLK
-// SDA -
-// SCLK -
-#define OLED_CS GPIO_NUM_15   // Chip Select
-#define OLED_DC GPIO_NUM_16  // Data/Command
-#define OLED_RST GPIO_NUM_14 // Reset
+#define OLED_MOSI 14
+#define OLED_CLK  13
+#define OLED_DC   12
+#define OLED_CS   15
+#define OLED_RESET -1 // Reset ignored
 
 #define RTC_SDA GPIO_NUM_21 // Default I2C
 #define RTC_SCL GPIO_NUM_22 // Default I2C
@@ -104,6 +104,7 @@ extern double currTime;
 extern uint32_t rtcBase;
 extern unsigned long millisBase;
 extern double timestamp;
+extern long ms;
 
 
 // Methods
@@ -114,11 +115,16 @@ void showRPM(int currentRPM);
 String pad(int number);
 void setup_wifi();
 void updateDisplay();
+void updateDisplay2();
+void updateDisplayClean();
+void displaySal();
 bool checkGateCrossing(GPSPoint prev, GPSPoint curr, double &newLapTime);
 int orientation(GPSPoint p, GPSPoint q, GPSPoint r);
 bool doIntersect(GPSPoint p1, GPSPoint q1);
 bool onSegment(GPSPoint p, GPSPoint q, GPSPoint r);
 bool getIntersectionTime(GPSPoint prev, GPSPoint curr);
+void testSDWrite();
+void listSDFiles();
 
 // CAN config
 static const can_general_config_t g_config = {.mode = TWAI_MODE_NO_ACK, .tx_io = TX_GPIO_NUM, .rx_io = RX_GPIO_NUM, .clkout_io = TWAI_IO_UNUSED, .bus_off_io = TWAI_IO_UNUSED, .tx_queue_len = 1, .rx_queue_len = 5, .alerts_enabled = TWAI_ALERT_ALL, .clkout_divider = 0, .intr_flags = ESP_INTR_FLAG_LEVEL1};
