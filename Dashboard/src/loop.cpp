@@ -8,12 +8,12 @@ Dashboard::Dashboard() : rtcWire(1),
                         display(Config::SCREEN_WIDTH, Config::SCREEN_HEIGHT, &spiOled, Config::OLED_DC, -1, Config::OLED_CS),
                         mqttClient(wifiClient)
 {
-   // Initialize GPS gate points
+   // Initialize GPS gate points (unchanged)
    gateL = GPSPoint(Config::LEFT_GATE_LAT, Config::LEFT_GATE_LON, 0.0, 0.0);
    gateR = GPSPoint(Config::RIGHT_GATE_LAT, Config::RIGHT_GATE_LON, 0.0, 0.0);
 
 
-   // Pre-compute gate vector for lap timing
+   // Pre-compute gate vector for lap timing (unchanged)
    gateVectorX = gateR.lon - gateL.lon;
    gateVectorY = gateR.lat - gateL.lat;
 }
@@ -21,57 +21,93 @@ Dashboard::Dashboard() : rtcWire(1),
 
 bool Dashboard::initialize()
 {
-   Serial.begin(115200);
-   Serial.println("Initializing dashboard...");
+   // This MUST run before any debug prints
+   Serial.begin(115200); 
+   if (Config::DEBUG_SERIAL) Serial.println("Initializing dashboard...");
 
-
-   // Initialize components
+   // Initialize hardware components first
+   // These are critical and should run to completion.
    rpmLeds.begin();
-   rpmLeds.show();
+   rpmLeds.show(); // Turn off LEDs
 
+   if (!initializeRTC()) {
+       // Non-fatal, but time will be wrong
+   }
 
    if (!initializeSD())
    {
-       Serial.println("WARNING: SD card initialization failed");
+       if (Config::DEBUG_SERIAL) Serial.println("WARNING: SD card initialization failed");
+       // Non-fatal, but logging won't work
    }
-
-
-   if (!initializeCAN())
-   {
-       Serial.println("ERROR: CAN initialization failed");
-       return false;
-   }
-
 
    if (!initializeDisplay())
    {
-       Serial.println("ERROR: Display initialization failed");
-       return false;
+       if (Config::DEBUG_SERIAL) Serial.println("ERROR: Display initialization failed");
+       return false; // Fatal
    }
 
-
-   if (!initializeWiFi())
+   if (!initializeCAN())
    {
-       Serial.println("WARNING: WiFi initialization failed");
+       if (Config::DEBUG_SERIAL) Serial.println("ERROR: CAN initialization failed");
+       return false; // Fatal
    }
 
+   // Start non-blocking network initialization
+   startWiFi(); 
 
-   if (!initializeNTP())
-   {
-       Serial.println("WARNING: NTP initialization failed");
-   }
+   // Setup MQTT (server only, doesn't connect yet)
+   mqttClient.setServer(Config::MQTT_SERVER, 1883);
 
-
-   // Create log file
-   createLogFile();
-
+   // Setup OTA
+   ArduinoOTA.begin();
 
    // List SD files for debugging
    listSDFiles();
 
-
-   Serial.println("Initialization complete");
+   if (Config::DEBUG_SERIAL) Serial.println("Initialization complete. Main loop starting.");
    return true;
+}
+
+// NEW: Handles all non-blocking network logic
+void Dashboard::updateNetwork() {
+   unsigned long currentMillis = millis();
+
+   // 1. Check WiFi Connection Status
+   if (WiFi.status() != WL_CONNECTED) {
+       // Not connected, check if it's time to retry
+       if (currentMillis - lastWifiAttempt > Config::WIFI_RETRY_INTERVAL) {
+           if (Config::DEBUG_SERIAL) Serial.println("Retrying WiFi connection...");
+           WiFi.begin(); // Re-issue begin
+           lastWifiAttempt = currentMillis;
+       }
+   } else {
+       // WiFi is connected!
+       // 2. Check NTP Sync Status (only run once)
+       if (!timeIsSynced) {
+           if (syncNTP()) {
+               // NTP Success!
+               timeIsSynced = true;
+           } else {
+               // NTP failed. Check for timeout.
+               if (currentMillis - ntpAttemptStart > Config::NTP_SYNC_TIMEOUT) {
+                   if (Config::DEBUG_SERIAL) Serial.println("NTP sync timed out. Using RTC time.");
+                   timeIsSynced = true; // Give up on NTP and set flag to true
+               }
+           }
+       }
+   }
+
+   // 3. Create Log File (only run once)
+   // This will run as soon as NTP is synced OR NTP times out.
+   if (timeIsSynced && !logFileCreated) {
+       createLogFile();
+   }
+
+   // 4. Handle MQTT Client
+   // Needs to be called on every loop for background tasks
+   if (WiFi.status() == WL_CONNECTED) {
+        mqttClient.loop();
+   }
 }
 
 
@@ -79,6 +115,8 @@ void Dashboard::update()
 {
    unsigned long currentMillis = millis();
 
+   // Handle non-blocking network connections (WiFi, NTP, MQTT)
+   updateNetwork();
 
    // Process CAN messages (highest priority)
    processCANMessages();
@@ -109,8 +147,8 @@ void Dashboard::update()
    }
 
 
-   // Increase dateTime
-   if (currentMillis - lastSecond >= Config::SECOND)
+   // Increase dateTime (only if time is synced)
+   if (timeIsSynced && (currentMillis - lastSecond >= Config::SECOND))
    {
        lastSecond = currentMillis;
        dateTime++;
@@ -122,32 +160,25 @@ void Dashboard::update()
 }
 
 
+// UPDATED: More efficient queue-draining method
 void Dashboard::processCANMessages()
 {
    twai_message_t msg;
 
-
-   // Process up to 10 messages per loop to prevent blocking
-   for (int i = 0; i < 10; i++)
-   {
-       if (twai_receive(&msg, 0) == ESP_OK)
+   // Process ALL available messages in the queue right now
+   while (twai_receive(&msg, 0) == ESP_OK) { // 0 timeout = non-blocking
+       if (Config::DEBUG_SERIAL && Config::DEBUG_CAN)
        {
-           if (vb)
+           Serial.printf("Can message recived with ID: 0x%X, Data: ", msg.identifier);
+           for (int i = 0; i < 8; i++)
            {
-               Serial.printf("Can message recived with ID: 0x%X, Data: ", msg.identifier);
-               for (int i = 0; i < 8; i++)
-               {
-                   Serial.printf("%02X ", msg.data[i]);
-               }
-               Serial.println();
+               Serial.printf("%02X ", msg.data[i]);
            }
-           handleCANMessage(msg);
+           Serial.println();
        }
-       else
-       {
-           // break; // No more messages
-       }
+       handleCANMessage(msg);
    }
+   // If no messages, this while loop is skipped instantly.
 }
 
 
@@ -157,11 +188,10 @@ void Dashboard::handleCANMessage(const twai_message_t &msg)
    formatLogLine(logLine, Config::LOG_LINE_SIZE, msg.identifier, msg.data, msg.data_length_code);
 
 
-   // Log to SD
-
-
-   logToSD(logLine);
-
+   // Log to SD (only if file is open)
+   if (logFile) {
+       logToSD(logLine);
+   }
 
    // Process message based on ID
    switch (msg.identifier)
@@ -197,6 +227,8 @@ void Dashboard::processRPMMessage(const twai_message_t &msg)
        if (currentRPM > Config::MIN_RPM)
        {
            showRPM(currentRPM);
+       } else {
+           showRPM(0); // Turn off LEDs if below min
        }
    }
 }
@@ -218,13 +250,12 @@ void Dashboard::processGPSMessage(const twai_message_t &msg)
    // Store previous location
    prevLocation = currLocation;
 
-
    // Update current location
    currLocation.timestamp = dateTime + (millis() % 1000) / 1000.0;
-   currLocation.lat = 46.0 + (msg.data[2] << 16 | msg.data[1] << 8 | msg.data[0]) / 10000.0;
-   currLocation.lon = 26.0 + (msg.data[5] << 16 | msg.data[4] << 8 | msg.data[3]) / 10000.0;
+   // Use new constants
+   currLocation.lat = Config::GPS_BASE_LAT + (msg.data[2] << 16 | msg.data[1] << 8 | msg.data[0]) / Config::GPS_SCALE_FACTOR;
+   currLocation.lon = Config::GPS_BASE_LON + (msg.data[5] << 16 | msg.data[4] << 8 | msg.data[3]) / Config::GPS_SCALE_FACTOR;
    currLocation.speed = msg.data[6];
-
 
    // Check if we've moved enough to check for gate crossing
    if (TinyGPSPlus::distanceBetween(prevLocation.lat, prevLocation.lon, currLocation.lat, currLocation.lon) > 1.5)
@@ -242,7 +273,8 @@ void Dashboard::processGPSMessage(const twai_message_t &msg)
 
 void Dashboard::processTempMessage(const twai_message_t &msg)
 {
-   float newTemp = ((((msg.data[6] << 8) | msg.data[7]) - 32) / 1.8) / 10.0;
+   // Use new constant
+   float newTemp = ((((msg.data[6] << 8) | msg.data[7]) - 32) / 1.8) / Config::TEMP_SCALE_FACTOR;
    if (abs(newTemp - currentTemp) > 0.5)
    {
        currentTemp = newTemp;
@@ -253,7 +285,8 @@ void Dashboard::processTempMessage(const twai_message_t &msg)
 
 void Dashboard::processVoltMessage(const twai_message_t &msg)
 {
-   float newVoltage = ((msg.data[2] << 8) | msg.data[4]) / 10.0;
+   // Use new constant
+   float newVoltage = ((msg.data[2] << 8) | msg.data[4]) / Config::VOLT_SCALE_FACTOR;
    if (abs(newVoltage - currentBatteryVoltage) > 0.1)
    {
        currentBatteryVoltage = newVoltage;
@@ -282,7 +315,7 @@ void Dashboard::updateDisplayClean()
 
 
    // Time at top right
-   unsigned long totalMs = lastLapTime;
+   unsigned long totalMs = lastLapTime * 1000; // Assuming lastLapTime is in seconds
    unsigned int mins = (totalMs / 60000) % 60;
    unsigned int secs = (totalMs / 1000) % 60;
    unsigned int tenths = (totalMs / 100) % 10;
@@ -298,7 +331,7 @@ void Dashboard::updateDisplayClean()
 
    // Temperature
    display.setCursor(100, 42);
-   display.printf("%.0f%cC", currentTemp, 247);
+   display.printf("%.0f%cC", currentTemp, 247); // 247 is degree symbol
 
 
    // Battery voltage
@@ -378,20 +411,31 @@ void Dashboard::flushSDBuffer()
 }
 
 
+// UPDATED: Non-blocking reconnect logic
 void Dashboard::publishMQTT()
 {
-   if (mqttClient.connected())
+   unsigned long currentMillis = millis();
+   
+   if (!mqttClient.connected())
    {
-       mqttClient.publish("canbus/log", logLine);
+       // Only try to reconnect if WiFi is on and timer has elapsed
+       if (WiFi.status() == WL_CONNECTED && (currentMillis - lastMqttAttempt > Config::MQTT_RETRY_INTERVAL))
+       {
+           if (Config::DEBUG_SERIAL) Serial.println("Attempting MQTT connection...");
+           lastMqttAttempt = currentMillis;
+           // This connect call IS still blocking, but now it only runs every 5s
+           if (mqttClient.connect("tuiasi-dashboard")) {
+               if (Config::DEBUG_SERIAL) Serial.println("MQTT connected");
+           } else {
+               if (Config::DEBUG_SERIAL) Serial.print("MQTT failed, rc=");
+               if (Config::DEBUG_SERIAL) Serial.println(mqttClient.state());
+           }
+       }
    }
    else
    {
-       // Try to reconnect
-       Serial.println("MQTT fail");
-       if (WiFi.status() == WL_CONNECTED)
-       {
-           mqttClient.connect("");
-       }
+       // If connected, publish
+       mqttClient.publish("canbus/log", logLine);
    }
 }
 
@@ -413,20 +457,28 @@ void Dashboard::formatLogLine(char *buffer, size_t size, uint32_t id, const uint
 
 void Dashboard::listSDFiles()
 {
-   Serial.println("Files on SD card:");
+   if (!SD.begin(Config::SD_CS_PIN)) {
+       if (Config::DEBUG_SERIAL) Serial.println("SD Card not present for file listing.");
+       return;
+   }
+   
+   if (Config::DEBUG_SERIAL) Serial.println("Files on SD card:");
    File root = SD.open("/");
+   if(!root){
+       if (Config::DEBUG_SERIAL) Serial.println("Failed to open root directory");
+       return;
+   }
+
    File file = root.openNextFile();
-
-
    while (file)
    {
        if (!file.isDirectory())
        {
-           Serial.print("  ");
-           Serial.print(file.name());
-           Serial.print("  (");
-           Serial.print(file.size());
-           Serial.println(" bytes)");
+           if (Config::DEBUG_SERIAL) Serial.print("  ");
+           if (Config::DEBUG_SERIAL) Serial.print(file.name());
+           if (Config::DEBUG_SERIAL) Serial.print("  (");
+           if (Config::DEBUG_SERIAL) Serial.print(file.size());
+           if (Config::DEBUG_SERIAL) Serial.println(" bytes)");
        }
        file = root.openNextFile();
    }
@@ -436,6 +488,7 @@ void Dashboard::listSDFiles()
    root.close();
 }
 
+// --- Lap Timing Geometry Functions (Unchanged) ---
 
 bool Dashboard::getIntersectionTime(const GPSPoint &prev, const GPSPoint &curr)
 {

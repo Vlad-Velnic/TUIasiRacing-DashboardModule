@@ -1,13 +1,31 @@
 #include "dashboard.h"
 
+// NEW: Initialize RTC
+// This should be one of the first things to run.
+bool Dashboard::initializeRTC() {
+   rtcWire.begin(Config::RTC_SDA, Config::RTC_SCL);
+   if (!rtc.begin(&rtcWire)) {
+       if (Config::DEBUG_SERIAL) Serial.println("ERROR: RTC initialization failed. Check wiring.");
+       // This is bad, but we can continue. Time will be wrong until NTP.
+       return false;
+   }
+   if (!rtc.isrunning()) {
+       if (Config::DEBUG_SERIAL) Serial.println("WARNING: RTC was not running! Setting to compile time.");
+       // This will be overwritten by NTP if available
+       rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+   }
+   if (Config::DEBUG_SERIAL) Serial.println("RTC initialization successful");
+   return true;
+}
+
 
 bool Dashboard::initializeSD() {
    spiSDCard.begin(Config::SD_SCK_PIN, Config::SD_MISO_PIN, Config::SD_MOSI_PIN, Config::SD_CS_PIN);
    if (!SD.begin(Config::SD_CS_PIN)) {
-       Serial.println("SD card initialization failed");
+       if (Config::DEBUG_SERIAL) Serial.println("WARNING: SD card initialization failed");
        return false;
    }
-   Serial.println("SD card initialization successful");
+   if (Config::DEBUG_SERIAL) Serial.println("SD card initialization successful");
    return true;
 }
 
@@ -15,17 +33,17 @@ bool Dashboard::initializeSD() {
 bool Dashboard::initializeCAN() {
    esp_err_t status = can_driver_install(&g_config, &t_config, &f_config);
    if (status != ESP_OK) {
-       Serial.println("CAN driver installation failed");
+       if (Config::DEBUG_SERIAL) Serial.println("ERROR: CAN driver installation failed");
        return false;
    }
   
    status = can_start();
    if (status != ESP_OK) {
-       Serial.println("CAN start failed");
+       if (Config::DEBUG_SERIAL) Serial.println("ERROR: CAN start failed");
        return false;
    }
   
-   Serial.println("CAN initialized successfully");
+   if (Config::DEBUG_SERIAL) Serial.println("CAN initialized successfully");
    return true;
 }
 
@@ -33,101 +51,89 @@ bool Dashboard::initializeCAN() {
 bool Dashboard::initializeDisplay() {
    spiOled.begin(Config::OLED_CLK, -1, Config::OLED_MOSI, Config::OLED_CS);
    if (!display.begin(SSD1306_SWITCHCAPVCC)) {
-       Serial.println("Display initialization failed");
+       if (Config::DEBUG_SERIAL) Serial.println("ERROR: Display initialization failed");
        return false;
    }
   
    display.clearDisplay();
    display.setTextColor(SSD1306_WHITE);
+   display.setTextSize(2);
+   display.setCursor(10, 20);
+   display.print("Booting...");
    display.display();
+   delay(500); // Show booting message
   
-   Serial.println("Display initialized successfully");
+   if (Config::DEBUG_SERIAL) Serial.println("Display initialized successfully");
    return true;
 }
 
-
-bool Dashboard::initializeWiFi() {
-   WiFi.begin();
-  
-   int attempts = 0;
-   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-       delay(500);
-       Serial.print(".");
-       attempts++;
-   }
-  
-   if (WiFi.status() != WL_CONNECTED) {
-       Serial.println("WiFi connection failed");
-       return false;
-   }
-  
-   Serial.println("WiFi connected");
-   Serial.print("IP address: ");
-   Serial.println(WiFi.localIP());
-  
-   // Setup MQTT
-   mqttClient.setServer(Config::MQTT_SERVER, 1883);
-  
-   // Setup OTA
-   ArduinoOTA.begin();
-  
-   return true;
+// UPDATED: Renamed to startWiFi, now non-blocking
+void Dashboard::startWiFi() {
+   WiFi.mode(WIFI_STA); // Set station mode
+   WiFi.begin(); // Start connection, do not wait
+   if (Config::DEBUG_SERIAL) Serial.println("Attempting WiFi connection...");
+   lastWifiAttempt = millis();
+   ntpAttemptStart = millis(); // Start NTP timeout timer
 }
 
-
-bool Dashboard::initializeNTP() {
+// UPDATED: Renamed to syncNTP, now called only when WiFi is connected
+bool Dashboard::syncNTP() {
+   if (Config::DEBUG_SERIAL) Serial.println("WiFi connected. Syncing NTP...");
    configTime(Config::GMT_OFFSET_SEC, Config::DAYLIGHT_OFFSET_SEC, Config::NTP_SERVER);
   
-  
-   int attempts = 0;
-   while (!getLocalTime(&timeinfo) && attempts < 10) {
-       Serial.println("Failed to obtain time");
-       delay(500);
-       attempts++;
-   }
-  
-   if (!getLocalTime(&timeinfo)) {
-       Serial.println("NTP time sync failed");
+   if (!getLocalTime(&timeinfo, 5000)) { // 5 second timeout
+       if (Config::DEBUG_SERIAL) Serial.println("Failed to obtain NTP time");
        return false;
    }
-  
-   dateTime = DateTime(
+
+   // NTP Succeeded!
+   // 1. Set the internal time variable
+   dateTime = mktime(&timeinfo);
+   
+   // 2. Update the external RTC module with the correct time
+   DateTime ntpTime = DateTime(
        timeinfo.tm_year + 1900,
        timeinfo.tm_mon + 1,
        timeinfo.tm_mday,
-       timeinfo.tm_hour + 1,
+       timeinfo.tm_hour,
        timeinfo.tm_min,
        timeinfo.tm_sec
-   ).unixtime();
-  
-   Serial.println("NTP time synchronized");
+   );
+   rtc.adjust(ntpTime);
+   
+   if (Config::DEBUG_SERIAL) Serial.println("NTP time synchronized and RTC updated");
+   timeIsSynced = true; // Set the global flag
    return true;
 }
 
 
 void Dashboard::createLogFile() {
-   // Format filename with date and time
-   DateTime dateTimeSD= DateTime(
-       timeinfo.tm_year + 1900,
-       timeinfo.tm_mon + 1,
-       timeinfo.tm_mday,
-       timeinfo.tm_hour + 1,
-       timeinfo.tm_min,
-       timeinfo.tm_sec
-   );
+   // Get the time from the RTC (which may or may not be NTP-synced)
+   DateTime now = rtc.now();
+
+   // If time hasn't been synced yet, dateTime will be 0.
+   // Set it from the RTC as a fallback.
+   if (!timeIsSynced) {
+       dateTime = now.unixtime();
+       if (Config::DEBUG_SERIAL) Serial.println("Creating log file with RTC time (NTP not synced).");
+   } else {
+       if (Config::DEBUG_SERIAL) Serial.println("Creating log file with NTP-synced time.");
+   }
+
    snprintf(filename, Config::FILENAME_SIZE,
        "/log_%04d-%02d-%02d_%02d-%02d-%02d.txt",
-       dateTimeSD.year(), dateTimeSD.month(), dateTimeSD.day(),
-       dateTimeSD.hour(), dateTimeSD.minute(), dateTimeSD.second());
+       now.year(), now.month(), now.day(),
+       now.hour(), now.minute(), now.second());
   
    logFile = SD.open(filename, FILE_WRITE);
    if (logFile) {
-       Serial.print("Logging data to: ");
-       Serial.println(filename);
+       if (Config::DEBUG_SERIAL) Serial.print("Logging data to: ");
+       if (Config::DEBUG_SERIAL) Serial.println(filename);
       
        // Write header
        logFile.println("timestamp,id,data");
    } else {
-       Serial.println("Error opening log file");
+       if (Config::DEBUG_SERIAL) Serial.println("Error opening log file");
    }
+   logFileCreated = true; // Mark as created
 }

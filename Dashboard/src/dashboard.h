@@ -39,6 +39,9 @@ namespace Config {
    constexpr const char* NTP_SERVER = "pool.ntp.org";
    constexpr int32_t GMT_OFFSET_SEC = 7200;    // România summer
    constexpr int32_t DAYLIGHT_OFFSET_SEC = 0;
+   constexpr unsigned long WIFI_RETRY_INTERVAL = 10000; // 10 seconds
+   constexpr unsigned long MQTT_RETRY_INTERVAL = 5000;  // 5 seconds
+   constexpr unsigned long NTP_SYNC_TIMEOUT = 30000; // 30 seconds to wait for NTP
   
    // GPS gate coordinates
    constexpr double LEFT_GATE_LAT = 46.525579;
@@ -46,8 +49,16 @@ namespace Config {
    constexpr double RIGHT_GATE_LAT = 46.525648;
    constexpr double RIGHT_GATE_LON = 26.942909;
   
+   // Magic number constants for CAN processing
+   constexpr double TEMP_SCALE_FACTOR = 10.0;
+   constexpr double VOLT_SCALE_FACTOR = 10.0;
+   constexpr double GPS_SCALE_FACTOR = 10000.0;
+   constexpr double GPS_BASE_LAT = 46.0;
+   constexpr double GPS_BASE_LON = 26.0;
+
    // Pin definitions
-   constexpr gpio_num_t RPM_PIN = GPIO_NUM_15;
+   // !!! CRITICAL FIX: Changed RPM_PIN from 15 (conflicted with OLED_CS) to 27
+   constexpr gpio_num_t RPM_PIN = GPIO_NUM_27;
   
    constexpr gpio_num_t SD_CS_PIN = GPIO_NUM_5;
    constexpr gpio_num_t SD_SCK_PIN = GPIO_NUM_18;
@@ -76,10 +87,17 @@ namespace Config {
    constexpr size_t LOG_LINE_SIZE = 128;
    constexpr size_t FILENAME_SIZE = 64;
    constexpr size_t SD_BUFFER_SIZE = 4096;
+
+   // Debug flags
+   // -----------------------------------------------------------------
+   // --- NEW: Set this to true/false to enable/disable all logging ---
+   static constexpr bool DEBUG_SERIAL = true;
+   // -----------------------------------------------------------------
+   static constexpr bool DEBUG_CAN = false; // Verbose CAN message logging
 }
 
 
-// CAN configuration
+// CAN configuration (unchanged)
 static const can_general_config_t g_config = {
    .mode = TWAI_MODE_NO_ACK,
    .tx_io = Config::TX_GPIO_NUM,
@@ -96,7 +114,7 @@ static const can_timing_config_t t_config = CAN_TIMING_CONFIG_500KBITS();
 static const can_filter_config_t f_config = CAN_FILTER_CONFIG_ACCEPT_ALL();
 
 
-// GPS Point structure
+// GPS Point structure (unchanged)
 struct GPSPoint {
    double lat = 0.0;
    double lon = 0.0;
@@ -119,18 +137,19 @@ public:
    bool initializeSD();
    bool initializeDisplay();
    bool initializeCAN();
-   bool initializeWiFi();
-   bool initializeNTP();
+   void startWiFi(); // Renamed from initializeWiFi
+   bool syncNTP();     // Renamed from initializeNTP
    void createLogFile();
   
    // Main loop methods
    void update();
+   void updateNetwork(); // New method for non-blocking network
    void processCANMessages();
    void updateDisplay();
    void publishMQTT();
    void flushSD();
   
-   // CAN message handlers
+   // CAN message handlers (unchanged)
    void handleCANMessage(const twai_message_t& msg);
    void processRPMMessage(const twai_message_t& msg);
    void processGearMessage(const twai_message_t& msg);
@@ -138,30 +157,27 @@ public:
    void processTempMessage(const twai_message_t& msg);
    void processVoltMessage(const twai_message_t& msg);
   
-   // Lap timing methods
+   // Lap timing methods (unchanged)
    bool checkGateCrossing();
    bool getIntersectionTime(const GPSPoint& prev, const GPSPoint& curr);
    bool doIntersect(const GPSPoint& p1, const GPSPoint& q1);
    int orientation(const GPSPoint& p, const GPSPoint& q, const GPSPoint& r);
    bool onSegment(const GPSPoint& p, const GPSPoint& q, const GPSPoint& r);
   
-   // Display methods
+   // Display methods (unchanged)
    void updateDisplayClean();
    void showRPM(int rpm);
   
-   // SD card methods
+   // SD card methods (unchanged)
    void logToSD(const char* message);
    void flushSDBuffer();
    void listSDFiles();
   
-   // Utility methods
+   // Utility methods (unchanged)
    void formatLogLine(char* buffer, size_t size, uint32_t id, const uint8_t* data, uint8_t length);
    char* formatTimestamp(char* buffer, size_t size, const DateTime& dt);
   
 private:
-
-
-   bool vb = false;
    // Hardware components
    RTC_DS1307 rtc;
    TwoWire rtcWire;
@@ -173,8 +189,7 @@ private:
    PubSubClient mqttClient;
   
    // State variables
-   unsigned long dateTime;
-   uint32_t rtcBase;
+   time_t dateTime; // Changed from unsigned long
    unsigned long millisBase;
    struct tm timeinfo;
   
@@ -206,10 +221,15 @@ private:
    unsigned long lastSDFlush = 0;
    unsigned long lastSecond = 0;
    unsigned long lastMQTTPublish = 0;
+   unsigned long lastMqttAttempt = 0; // New for non-blocking MQTT
+   unsigned long lastWifiAttempt = 0; // New for non-blocking WiFi
+   unsigned long ntpAttemptStart = 0; // New for NTP timeout
   
    // Flags
    bool displayNeedsUpdate = false;
-  
+   bool timeIsSynced = false;     // New for time sync logic
+   bool logFileCreated = false; // New: ensure log file is created once
+   
    // Pre-computed values for lap timing
    double gateVectorX;
    double gateVectorY;
