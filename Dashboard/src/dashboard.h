@@ -57,9 +57,6 @@ namespace Config
     constexpr double GPS_BASE_LON = 26.0;
 
     // Pin definitions
-    // !!! CRITICAL FIX: Changed RPM_PIN from 15 (conflicted with OLED_CS) to 27
-    // constexpr gpio_num_t RPM_PIN = GPIO_NUM_27;
-
     constexpr gpio_num_t SD_CS_PIN = GPIO_NUM_5;
     constexpr gpio_num_t SD_SCK_PIN = GPIO_NUM_18;
     constexpr gpio_num_t SD_MISO_PIN = GPIO_NUM_19;
@@ -82,6 +79,8 @@ namespace Config
     constexpr unsigned long SD_FLUSH_INTERVAL = 70;
     constexpr unsigned long MQTT_PUBLISH_INTERVAL = 80;
     constexpr unsigned long SECOND = 1000;
+    // --- NEW: Timeout for CAN modules ---
+    constexpr unsigned long CAN_TIMEOUT = 3000; // 3 seconds
 
     // Buffer sizes
     constexpr size_t LOG_LINE_SIZE = 128;
@@ -176,6 +175,9 @@ public:
     char *formatTimestamp(char *buffer, size_t size, const DateTime &dt);
 
 private:
+    // --- NEW: Method to check CAN timeouts ---
+    void checkCANTimeouts();
+
     // Hardware components
     RTC_DS1307 rtc;
     TwoWire rtcWire;
@@ -192,9 +194,9 @@ private:
     struct tm timeinfo;
 
     int currentRPM = 0;
-    short int currentGear = 2;
-    float currentTemp = 80.0f;
-    float currentBatteryVoltage = 14.2f;
+    short int currentGear = 0;
+    float currentTemp = -1.0f;
+    float currentBatteryVoltage = 5.5f;
 
     GPSPoint gateL;
     GPSPoint gateR;
@@ -223,10 +225,21 @@ private:
     unsigned long lastWifiAttempt = 0; // New for non-blocking WiFi
     unsigned long ntpAttemptStart = 0; // New for NTP timeout
 
+    // --- NEW: Timestamps for CAN timeout checking ---
+    unsigned long lastRPMMessage = 0;
+    unsigned long lastGearMessage = 0;
+    unsigned long lastGPSMessage = 0;
+
     // Flags
     bool displayNeedsUpdate = false;
     bool timeIsSynced = false;   // New for time sync logic
     bool logFileCreated = false; // New: ensure log file is created once
+
+    // --- NEW: Error flags ---
+    bool NO_WIFI_MODE = true;
+    bool NO_ECU = true;
+    bool NO_FRONT = true;
+    bool NO_REAR = true;
 
     // Pre-computed values for lap timing
     double gateVectorX;

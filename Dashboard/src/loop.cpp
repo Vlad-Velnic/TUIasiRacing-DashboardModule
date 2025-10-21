@@ -13,12 +13,32 @@ Dashboard::Dashboard() : rtcWire(1),
     // Pre-compute gate vector for lap timing (unchanged)
     gateVectorX = gateR.lon - gateL.lon;
     gateVectorY = gateR.lat - gateL.lat;
+
+    // --- NEW: Initialize flags and timestamps ---
+    // Give a grace period at startup to prevent immediate timeouts
+    unsigned long now = millis();
+    lastRPMMessage = now;
+    lastGearMessage = now;
+    lastGPSMessage = now;
+
+    NO_WIFI_MODE = true;
+    NO_ECU = false; // Start as false, will be set to true by timeout
+    NO_FRONT = false;
+    NO_REAR = false;
 }
 
 // NEW: Handles all non-blocking network logic
 void Dashboard::updateNetwork()
 {
     unsigned long currentMillis = millis();
+
+    // --- NEW: Update WiFi status flag ---
+    bool wifi_status = (WiFi.status() == WL_CONNECTED);
+    if (wifi_status == NO_WIFI_MODE) // Status changed
+    {
+        displayNeedsUpdate = true; // Trigger display update
+    }
+    NO_WIFI_MODE = !wifi_status;
 
     // 1. Check WiFi Connection Status
     if (WiFi.status() != WL_CONNECTED)
@@ -81,6 +101,9 @@ void Dashboard::update()
     // Process CAN messages (highest priority)
     processCANMessages();
 
+    // Check for CAN message timeouts
+    checkCANTimeouts();
+
     // Update display if needed
     if (displayNeedsUpdate || (currentMillis - lastDisplayUpdate >= Config::DISPLAY_UPDATE_INTERVAL))
     {
@@ -108,6 +131,36 @@ void Dashboard::update()
     {
         lastSecond = currentMillis;
         dateTime++;
+    }
+}
+
+// Function to check CAN timeouts
+void Dashboard::checkCANTimeouts()
+{
+    unsigned long currentMillis = millis();
+
+    // Check ECU timeout (RPM)
+    if (currentMillis - lastRPMMessage > Config::CAN_TIMEOUT)
+    {
+        if (!NO_ECU) // Only update display if state changes
+            displayNeedsUpdate = true;
+        NO_ECU = true;
+    }
+
+    // Check FRONT timeout (GPS)
+    if (currentMillis - lastGPSMessage > Config::CAN_TIMEOUT)
+    {
+        if (!NO_FRONT) // Only update display if state changes
+            displayNeedsUpdate = true;
+        NO_FRONT = true;
+    }
+
+    // Check REAR timeout (Gear)
+    if (currentMillis - lastGearMessage > Config::CAN_TIMEOUT)
+    {
+        if (!NO_REAR) // Only update display if state changes
+            displayNeedsUpdate = true;
+        NO_REAR = true;
     }
 }
 
@@ -167,6 +220,12 @@ void Dashboard::handleCANMessage(const twai_message_t &msg)
 
 void Dashboard::processRPMMessage(const twai_message_t &msg)
 {
+    // --- NEW: Reset ECU timeout flag and timestamp ---
+    if (NO_ECU)
+        displayNeedsUpdate = true; // Update display if error is clearing
+    NO_ECU = false;
+    lastRPMMessage = millis();
+
     int newRPM = (msg.data[6] << 8) | msg.data[7];
     if (newRPM != currentRPM)
     {
@@ -177,6 +236,12 @@ void Dashboard::processRPMMessage(const twai_message_t &msg)
 
 void Dashboard::processGearMessage(const twai_message_t &msg)
 {
+    // --- NEW: Reset REAR timeout flag and timestamp ---
+    if (NO_REAR)
+        displayNeedsUpdate = true; // Update display if error is clearing
+    NO_REAR = false;
+    lastGearMessage = millis();
+
     short int newGear = msg.data[4];
     if (newGear != currentGear)
     {
@@ -187,6 +252,12 @@ void Dashboard::processGearMessage(const twai_message_t &msg)
 
 void Dashboard::processGPSMessage(const twai_message_t &msg)
 {
+    // --- NEW: Reset FRONT timeout flag and timestamp ---
+    if (NO_FRONT)
+        displayNeedsUpdate = true; // Update display if error is clearing
+    NO_FRONT = false;
+    lastGPSMessage = millis();
+
     // Store previous location
     prevLocation = currLocation;
 
@@ -242,7 +313,7 @@ void Dashboard::updateDisplayClean()
     // Large gear number on left
     display.setTextSize(8);
     display.setCursor(0, 5);
-    if (currentGear == 0)
+    if (currentGear == 0 && !NO_REAR)
         display.print("N");
     else
         display.print(currentGear);
@@ -262,6 +333,7 @@ void Dashboard::updateDisplayClean()
     // Right side temp and voltage
     display.setTextSize(1);
 
+    // --- This section is now functional ---
     if (NO_WIFI_MODE)
     {
         display.setCursor(55, 30);
@@ -285,6 +357,7 @@ void Dashboard::updateDisplayClean()
         display.setCursor(85, 30);
         display.printf("M");
     }
+    // --- End of error display ---
 
     // Temperature
     display.setCursor(100, 42);
