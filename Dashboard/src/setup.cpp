@@ -2,7 +2,6 @@
 
 bool Dashboard::initialize()
 {
-    // This MUST run before any debug prints
     Serial.begin(115200);
     if (Config::DEBUG_SERIAL)
         Serial.println("Initializing dashboard...");
@@ -12,16 +11,6 @@ bool Dashboard::initialize()
             Serial.println("ERROR: Display initialization failed");
         return false; // Fatal
     }
-
-    if (!initializeSD())
-    {
-        if (Config::DEBUG_SERIAL)
-            Serial.println("WARNING: SD card initialization failed");
-        return false;
-    }
-
-    display.setCursor(2, 33);
-    display.print("SD - done");
 
     if (!initializeCAN())
     {
@@ -33,46 +22,33 @@ bool Dashboard::initialize()
     display.setCursor(2, 38);
     display.print("CAN - done");
 
-    // Start non-blocking network initialization
     startWiFi();
+
+
+    display.setCursor(2, 43);
+    display.print("WI-FI - done");
+
+    if (!initializeSD())
+    {
+        if (Config::DEBUG_SERIAL)
+            Serial.println("WARNING: SD card initialization failed");
+        return false;
+    }
+
+    display.setCursor(2, 33);
+    display.print("SD - done");
 
     // Setup MQTT (server only, doesn't connect yet)
     mqttClient.setServer(Config::MQTT_SERVER, 1883);
 
     // List SD files for debugging
-    if(Config::DEBUG_SERIAL) listSDFiles();
-
-    display.setCursor(2, 43);
-    display.print("WI-FI - done");
+    if (Config::DEBUG_SERIAL)
+        listSDFiles();
 
     if (Config::DEBUG_SERIAL)
         Serial.println("Initialization complete. Main loop starting.");
-    
-    delay(300);
-    return true;
-}
 
-// NEW: Initialize RTC
-// This should be one of the first things to run.
-bool Dashboard::initializeRTC()
-{
-    rtcWire.begin(Config::RTC_SDA, Config::RTC_SCL);
-    if (!rtc.begin(&rtcWire))
-    {
-        if (Config::DEBUG_SERIAL)
-            Serial.println("ERROR: RTC initialization failed. Check wiring.");
-        // This is bad, but we can continue. Time will be wrong until NTP.
-        return false;
-    }
-    if (!rtc.isrunning())
-    {
-        if (Config::DEBUG_SERIAL)
-            Serial.println("WARNING: RTC was not running! Setting to compile time.");
-        // This will be overwritten by NTP if available
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    }
-    if (Config::DEBUG_SERIAL)
-        Serial.println("RTC initialization successful");
+    delay(300);
     return true;
 }
 
@@ -136,7 +112,6 @@ bool Dashboard::initializeDisplay()
     return true;
 }
 
-// UPDATED: Renamed to startWiFi, now non-blocking
 void Dashboard::startWiFi()
 {
     WiFi.mode(WIFI_STA); // Set station mode

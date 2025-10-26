@@ -14,7 +14,7 @@ Dashboard::Dashboard() : rtcWire(1),
     gateVectorX = gateR.lon - gateL.lon;
     gateVectorY = gateR.lat - gateL.lat;
 
-    // --- NEW: Initialize flags and timestamps ---
+    // Initialize flags and timestamps
     // Give a grace period at startup to prevent immediate timeouts
     unsigned long now = millis();
     lastRPMMessage = now;
@@ -27,12 +27,11 @@ Dashboard::Dashboard() : rtcWire(1),
     NO_REAR = false;
 }
 
-// NEW: Handles all non-blocking network logic
 void Dashboard::updateNetwork()
 {
     unsigned long currentMillis = millis();
 
-    // --- NEW: Update WiFi status flag ---
+    // Update WiFi status flag
     bool wifi_status = (WiFi.status() == WL_CONNECTED);
     if (wifi_status == NO_WIFI_MODE) // Status changed
     {
@@ -164,14 +163,13 @@ void Dashboard::checkCANTimeouts()
     }
 }
 
-// UPDATED: More efficient queue-draining method
 void Dashboard::processCANMessages()
 {
     twai_message_t msg;
 
     // Process ALL available messages in the queue right now
     while (twai_receive(&msg, 0) == ESP_OK)
-    { // 0 timeout = non-blocking
+    {
         if (Config::DEBUG_SERIAL && Config::DEBUG_CAN)
         {
             Serial.printf("Can message recived with ID: 0x%X, Data: ", msg.identifier);
@@ -220,7 +218,7 @@ void Dashboard::handleCANMessage(const twai_message_t &msg)
 
 void Dashboard::processRPMMessage(const twai_message_t &msg)
 {
-    // --- NEW: Reset ECU timeout flag and timestamp ---
+    // Reset ECU timeout flag and timestamp
     if (NO_ECU)
         displayNeedsUpdate = true; // Update display if error is clearing
     NO_ECU = false;
@@ -236,7 +234,7 @@ void Dashboard::processRPMMessage(const twai_message_t &msg)
 
 void Dashboard::processGearMessage(const twai_message_t &msg)
 {
-    // --- NEW: Reset REAR timeout flag and timestamp ---
+    // Reset REAR timeout flag and timestamp
     if (NO_REAR)
         displayNeedsUpdate = true; // Update display if error is clearing
     NO_REAR = false;
@@ -252,7 +250,7 @@ void Dashboard::processGearMessage(const twai_message_t &msg)
 
 void Dashboard::processGPSMessage(const twai_message_t &msg)
 {
-    // --- NEW: Reset FRONT timeout flag and timestamp ---
+    // Reset FRONT timeout flag and timestamp
     if (NO_FRONT)
         displayNeedsUpdate = true; // Update display if error is clearing
     NO_FRONT = false;
@@ -307,7 +305,6 @@ void Dashboard::updateDisplayClean()
 {
     display.clearDisplay();
 
-    // Set white text for the normal display elements
     display.setTextColor(SSD1306_WHITE);
 
     // Large gear number on left
@@ -333,7 +330,6 @@ void Dashboard::updateDisplayClean()
     // Right side temp and voltage
     display.setTextSize(1);
 
-    // --- This section is now functional ---
     if (NO_WIFI_MODE)
     {
         display.setCursor(55, 30);
@@ -357,7 +353,6 @@ void Dashboard::updateDisplayClean()
         display.setCursor(85, 30);
         display.printf("M");
     }
-    // --- End of error display ---
 
     // Temperature
     display.setCursor(100, 42);
@@ -436,20 +431,18 @@ void Dashboard::flushSDBuffer()
     }
 }
 
-// UPDATED: Non-blocking reconnect logic
+// Reconnect logic
 void Dashboard::publishMQTT()
 {
     unsigned long currentMillis = millis();
 
     if (!mqttClient.connected())
     {
-        // Only try to reconnect if WiFi is on and timer has elapsed
         if (WiFi.status() == WL_CONNECTED && (currentMillis - lastMqttAttempt > Config::MQTT_RETRY_INTERVAL))
         {
             if (Config::DEBUG_SERIAL)
                 Serial.println("Attempting MQTT connection...");
             lastMqttAttempt = currentMillis;
-            // This connect call IS still blocking, but now it only runs every 5s
             if (mqttClient.connect("tuiasi-dashboard"))
             {
                 if (Config::DEBUG_SERIAL)
@@ -526,7 +519,7 @@ void Dashboard::listSDFiles()
     root.close();
 }
 
-// --- Lap Timing Geometry Functions (Unchanged) ---
+// Lap Timing Geometry Functions
 
 bool Dashboard::getIntersectionTime(const GPSPoint &prev, const GPSPoint &curr)
 {

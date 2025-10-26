@@ -79,7 +79,6 @@ namespace Config
     constexpr unsigned long SD_FLUSH_INTERVAL = 70;
     constexpr unsigned long MQTT_PUBLISH_INTERVAL = 80;
     constexpr unsigned long SECOND = 1000;
-    // --- NEW: Timeout for CAN modules ---
     constexpr unsigned long CAN_TIMEOUT = 3000; // 3 seconds
 
     // Buffer sizes
@@ -88,10 +87,7 @@ namespace Config
     constexpr size_t SD_BUFFER_SIZE = 4096;
 
     // Debug flags
-    // -----------------------------------------------------------------
-    // --- NEW: Set this to true/false to enable/disable all logging ---
     static constexpr bool DEBUG_SERIAL = true;
-    // -----------------------------------------------------------------
     static constexpr bool DEBUG_CAN = false; // Verbose CAN message logging
 }
 
@@ -175,7 +171,6 @@ public:
     char *formatTimestamp(char *buffer, size_t size, const DateTime &dt);
 
 private:
-    // --- NEW: Method to check CAN timeouts ---
     void checkCANTimeouts();
 
     // Hardware components
@@ -189,7 +184,7 @@ private:
     PubSubClient mqttClient;
 
     // State variables
-    time_t dateTime; // Changed from unsigned long
+    time_t dateTime;
     unsigned long millisBase;
     struct tm timeinfo;
 
@@ -221,21 +216,21 @@ private:
     unsigned long lastSDFlush = 0;
     unsigned long lastSecond = 0;
     unsigned long lastMQTTPublish = 0;
-    unsigned long lastMqttAttempt = 0; // New for non-blocking MQTT
-    unsigned long lastWifiAttempt = 0; // New for non-blocking WiFi
-    unsigned long ntpAttemptStart = 0; // New for NTP timeout
+    unsigned long lastMqttAttempt = 0;
+    unsigned long lastWifiAttempt = 0;
+    unsigned long ntpAttemptStart = 0;
 
-    // --- NEW: Timestamps for CAN timeout checking ---
+    // Timestamps for CAN timeout checking
     unsigned long lastRPMMessage = 0;
     unsigned long lastGearMessage = 0;
     unsigned long lastGPSMessage = 0;
 
     // Flags
     bool displayNeedsUpdate = false;
-    bool timeIsSynced = false;   // New for time sync logic
-    bool logFileCreated = false; // New: ensure log file is created once
+    bool timeIsSynced = false;
+    bool logFileCreated = false;
 
-    // --- NEW: Error flags ---
+    // Error flags
     bool NO_WIFI_MODE = true;
     bool NO_ECU = true;
     bool NO_FRONT = true;
