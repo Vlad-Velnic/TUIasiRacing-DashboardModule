@@ -174,8 +174,8 @@ private:
     void checkCANTimeouts();
 
     // Hardware components
-    RTC_DS1307 rtc;
-    TwoWire rtcWire;
+    //RTC_DS1307 rtc;
+    //TwoWire rtcWire;
     Adafruit_NeoPixel rpmLeds;
     SPIClass spiOled;
     SPIClass spiSDCard;

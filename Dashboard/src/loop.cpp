@@ -1,6 +1,6 @@
 #include "dashboard.h"
 
-Dashboard::Dashboard() : rtcWire(1),
+Dashboard::Dashboard() : //rtcWire(1),
                          spiOled(HSPI),
                          spiSDCard(VSPI),
                          display(Config::SCREEN_WIDTH, Config::SCREEN_HEIGHT, &spiOled, Config::OLED_DC, -1, Config::OLED_CS),
