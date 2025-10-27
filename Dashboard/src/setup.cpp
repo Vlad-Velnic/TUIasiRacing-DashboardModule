@@ -39,7 +39,7 @@ bool Dashboard::initialize()
     display.print("SD - done");
 
     // Setup MQTT (server only, doesn't connect yet)
-    mqttClient.setServer(Config::MQTT_SERVER, 1883);
+    mqttClient.setServer(Config::MQTT_SERVER, 8883);
 
     // List SD files for debugging
     if (Config::DEBUG_SERIAL)
@@ -115,7 +115,7 @@ bool Dashboard::initializeDisplay()
 void Dashboard::startWiFi()
 {
     WiFi.mode(WIFI_STA); // Set station mode
-    WiFi.begin();        // Start connection, do not wait
+    WiFi.begin("Vlad's iPhone 14","coscos27");        // Start connection, do not wait
     if (Config::DEBUG_SERIAL)
         Serial.println("Attempting WiFi connection...");
     syncNTP();

@@ -443,7 +443,7 @@ void Dashboard::publishMQTT()
             if (Config::DEBUG_SERIAL)
                 Serial.println("Attempting MQTT connection...");
             lastMqttAttempt = currentMillis;
-            if (mqttClient.connect("tuiasi-dashboard"))
+            if (mqttClient.connect("canbus/log"))
             {
                 if (Config::DEBUG_SERIAL)
                     Serial.println("MQTT connected");
